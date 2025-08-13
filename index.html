@@ -26,7 +26,7 @@
         #canvas {
             width: 100%;
             height: 100%;
-            touch-action: none; /* Для лучшего обработки свайпов */
+            touch-action: none;
         }
         #start-button {
             position: absolute;
@@ -97,11 +97,11 @@
 
         let width, height;
         let gameStarted = false;
-        let timer = 30; // Время игры в секундах
+        let timer = 30;
         let score = 0;
         let ballX, ballY;
         let goaliePos = 1; // 0 - лево, 1 - центр, 2 - право
-        let ballDirection = 1; // Направление мяча: 0 - лево, 1 - центр, 2 - право
+        let ballDirection = 1;
         let isKicking = false;
         let touchStartX = 0;
         let touchStartY = 0;
@@ -118,7 +118,7 @@
             canvas.width = width;
             canvas.height = height;
             ballX = width / 2;
-            ballY = height - 100; // Мяч внизу
+            ballY = height * 0.7; // Мяч ближе к низу экрана
             ballRadius = Math.min(20, width / 20);
         }
 
@@ -126,25 +126,28 @@
         resizeCanvas();
 
         function drawGoal() {
-            // Ворота
+            // Ворота с пропорциями 2:1 (ширина:высота), как настоящие футбольные ворота
+            const goalWidth = width * 0.5; // 50% ширины экрана
+            const goalHeight = goalWidth / 2; // Высота — половина ширины
+            const goalY = height * 0.2; // Ворота ближе к верху
             ctx.fillStyle = '#fff';
-            ctx.fillRect(width / 4, 50, width / 2, height / 4);
+            ctx.fillRect(width / 4, goalY, goalWidth, goalHeight);
             ctx.strokeStyle = '#000';
             ctx.lineWidth = 5;
-            ctx.strokeRect(width / 4, 50, width / 2, height / 4);
+            ctx.strokeRect(width / 4, goalY, goalWidth, goalHeight);
         }
 
         function drawGoalie() {
-            const goalieWidth = width / 6;
-            const goalieHeight = height / 8;
-            const goalieY = 50 + height / 8;
+            const goalieWidth = width * 0.15; // 15% ширины экрана
+            const goalieHeight = height * 0.25; // 25% высоты экрана
+            const goalY = height * 0.2; // Позиция ворот
             let goalieX;
             if (goaliePos === 0) goalieX = width / 4;
             else if (goaliePos === 1) goalieX = width / 2 - goalieWidth / 2;
             else goalieX = width / 2 + width / 4 - goalieWidth;
 
-            ctx.fillStyle = '#ff0000'; // Красный вратарь
-            ctx.fillRect(goalieX, goalieY, goalieWidth, goalieHeight);
+            ctx.fillStyle = '#ff4500'; // Оранжевый вратарь
+            ctx.fillRect(goalieX, goalY + goalieHeight * 0.2, goalieWidth, goalieHeight * 0.8); // Смещение для ног
         }
 
         function drawBall() {
@@ -152,6 +155,16 @@
             ctx.arc(ballX, ballY, ballRadius, 0, Math.PI * 2);
             ctx.fillStyle = '#fff';
             ctx.fill();
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            // Добавляем простую текстуру мяча
+            ctx.beginPath();
+            for (let i = 0; i < 5; i++) {
+                ctx.moveTo(ballX + ballRadius * Math.cos(i * 2 * Math.PI / 5), ballY + ballRadius * Math.sin(i * 2 * Math.PI / 5));
+                ctx.lineTo(ballX + ballRadius * Math.cos((i + 0.5) * 2 * Math.PI / 5), ballY + ballRadius * Math.sin((i + 0.5) * 2 * Math.PI / 5));
+            }
+            ctx.strokeStyle = '#0000ff';
             ctx.stroke();
         }
 
@@ -166,11 +179,9 @@
                 ballX += ballVelocityX;
                 ballY += ballVelocityY;
 
-                // Проверка столкновения с воротами
-                if (ballY <= 50 + height / 4) {
+                if (ballY <= height * 0.2 + (width * 0.5 / 2)) { // Проверка достижения ворот
                     isKicking = false;
-                    // Определить, попал ли мяч
-                    const goalSections = width / 2 / 3; // 3 части ворот
+                    const goalSections = width * 0.5 / 3;
                     const ballSection = Math.floor((ballX - width / 4) / goalSections);
                     if (ballSection !== goaliePos) {
                         score++;
@@ -213,40 +224,36 @@
 
         function resetBall() {
             ballX = width / 2;
-            ballY = height - 100;
+            ballY = height * 0.7;
             ballVelocityX = 0;
             ballVelocityY = 0;
-            isKicking = false; // Блокируем новый удар до сброса
-            goaliePos = Math.floor(Math.random() * 3); // Случайная позиция вратаря
+            isKicking = false;
+            goaliePos = Math.floor(Math.random() * 3);
         }
 
         function handleTouchStart(e) {
-            if (!gameStarted || isKicking) return; // Блокируем, если мяч в полёте
+            if (!gameStarted || isKicking) return;
             touchStartX = e.touches[0].clientX;
             touchStartY = e.touches[0].clientY;
         }
 
         function handleTouchEnd(e) {
-            if (!gameStarted || isKicking) return; // Блокируем, если мяч в полёте
+            if (!gameStarted || isKicking) return;
             touchEndX = e.changedTouches[0].clientX;
             touchEndY = e.changedTouches[0].clientY;
 
             const dx = touchEndX - touchStartX;
             const dy = touchEndY - touchStartY;
 
-            // Вычислить направление
             ballVelocityX = dx / 20;
-            ballVelocityY = dy / 20 - 5; // Добавляем подъём вверх
+            ballVelocityY = dy / 20 - 5;
 
-            // Определить направление для гола: лево, центр, право
             if (dx < -50) ballDirection = 0;
             else if (dx > 50) ballDirection = 2;
             else ballDirection = 1;
 
             isKicking = true;
-
-            // Вратарь делает ровно одно движение
-            goaliePos = Math.floor(Math.random() * 3); // Случайно: лево, центр, право
+            goaliePos = Math.floor(Math.random() * 3);
         }
 
         canvas.addEventListener('touchstart', handleTouchStart);
