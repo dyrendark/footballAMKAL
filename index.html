@@ -214,17 +214,20 @@
         function resetBall() {
             ballX = width / 2;
             ballY = height - 100;
+            ballVelocityX = 0;
+            ballVelocityY = 0;
+            isKicking = false; // Блокируем новый удар до сброса
             goaliePos = Math.floor(Math.random() * 3); // Случайная позиция вратаря
         }
 
         function handleTouchStart(e) {
-            if (!gameStarted || isKicking) return;
+            if (!gameStarted || isKicking) return; // Блокируем, если мяч в полёте
             touchStartX = e.touches[0].clientX;
             touchStartY = e.touches[0].clientY;
         }
 
         function handleTouchEnd(e) {
-            if (!gameStarted || isKicking) return;
+            if (!gameStarted || isKicking) return; // Блокируем, если мяч в полёте
             touchEndX = e.changedTouches[0].clientX;
             touchEndY = e.changedTouches[0].clientY;
 
@@ -242,8 +245,8 @@
 
             isKicking = true;
 
-            // Вратарь двигается случайно (уже установлен в resetBall, но можно изменить при ударе)
-            goaliePos = Math.floor(Math.random() * 3);
+            // Вратарь делает ровно одно движение
+            goaliePos = Math.floor(Math.random() * 3); // Случайно: лево, центр, право
         }
 
         canvas.addEventListener('touchstart', handleTouchStart);
