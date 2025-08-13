@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Пенальти в Telegram</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #28a745; /* Зеленый газон */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            font-family: Arial, sans-serif;
+            color: white;
+            overflow: hidden;
+        }
+        #game-container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+        }
+        #canvas {
+            width: 100%;
+            height: 100%;
+            touch-action: none; /* Для лучшего обработки свайпов */
+        }
+        #start-button {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            padding: 20px 40px;
+            font-size: 24px;
+            background-color: #007bff;
+            border: none;
+            color: white;
+            cursor: pointer;
+            z-index: 10;
+        }
+        #score {
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 24px;
+            z-index: 10;
+        }
+        #timer {
+            position: absolute;
+            top: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 20px;
+            z-index: 10;
+        }
+        #end-screen {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            font-size: 24px;
+            display: none;
+            z-index: 10;
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <canvas id="canvas"></canvas>
+        <button id="start-button">Играть</button>
+        <div id="score">Голы: 0</div>
+        <div id="timer">Время: 30</div>
+        <div id="end-screen">
+            <p>Игра окончена!</p>
+            <p id="final-score"></p>
+            <button id="restart-button">Играть снова</button>
+        </div>
+    </div>
+    <script>
+        const tg = window.Telegram.WebApp;
+        tg.ready();
+        tg.expand();
+
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const startButton = document.getElementById('start-button');
+        const scoreDiv = document.getElementById('score');
+        const timerDiv = document.getElementById('timer');
+        const endScreen = document.getElementById('end-screen');
+        const finalScore = document.getElementById('final-score');
+        const restartButton = document.getElementById('restart-button');
+
+        let width, height;
+        let gameStarted = false;
+        let timer = 30; // Время игры в секундах
+        let score = 0;
+        let ballX, ballY;
+        let goaliePos = 1; // 0 - лево, 1 - центр, 2 - право
+        let ballDirection = 1; // Направление мяча: 0 - лево, 1 - центр, 2 - право
+        let isKicking = false;
+        let touchStartX = 0;
+        let touchStartY = 0;
+        let touchEndX = 0;
+        let touchEndY = 0;
+        let animationFrame;
+        let ballVelocityX = 0;
+        let ballVelocityY = 0;
+        let ballRadius = 20;
+
+        function resizeCanvas() {
+            width = window.innerWidth;
+            height = window.innerHeight;
+            canvas.width = width;
+            canvas.height = height;
+            ballX = width / 2;
+            ballY = height - 100; // Мяч внизу
+            ballRadius = Math.min(20, width / 20);
+        }
+
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        function drawGoal() {
+            // Ворота
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(width / 4, 50, width / 2, height / 4);
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 5;
+            ctx.strokeRect(width / 4, 50, width / 2, height / 4);
+        }
+
+        function drawGoalie() {
+            const goalieWidth = width / 6;
+            const goalieHeight = height / 8;
+            const goalieY = 50 + height / 8;
+            let goalieX;
+            if (goaliePos === 0) goalieX = width / 4;
+            else if (goaliePos === 1) goalieX = width / 2 - goalieWidth / 2;
+            else goalieX = width / 2 + width / 4 - goalieWidth;
+
+            ctx.fillStyle = '#ff0000'; // Красный вратарь
+            ctx.fillRect(goalieX, goalieY, goalieWidth, goalieHeight);
+        }
+
+        function drawBall() {
+            ctx.beginPath();
+            ctx.arc(ballX, ballY, ballRadius, 0, Math.PI * 2);
+            ctx.fillStyle = '#fff';
+            ctx.fill();
+            ctx.stroke();
+        }
+
+        function updateGame() {
+            ctx.clearRect(0, 0, width, height);
+
+            drawGoal();
+            drawGoalie();
+            drawBall();
+
+            if (isKicking) {
+                ballX += ballVelocityX;
+                ballY += ballVelocityY;
+
+                // Проверка столкновения с воротами
+                if (ballY <= 50 + height / 4) {
+                    isKicking = false;
+                    // Определить, попал ли мяч
+                    const goalSections = width / 2 / 3; // 3 части ворот
+                    const ballSection = Math.floor((ballX - width / 4) / goalSections);
+                    if (ballSection !== goaliePos) {
+                        score++;
+                        scoreDiv.textContent = `Голы: ${score}`;
+                    }
+                    resetBall();
+                }
+            }
+
+            animationFrame = requestAnimationFrame(updateGame);
+        }
+
+        function startGame() {
+            gameStarted = true;
+            startButton.style.display = 'none';
+            scoreDiv.style.display = 'block';
+            timerDiv.style.display = 'block';
+            score = 0;
+            scoreDiv.textContent = `Голы: ${score}`;
+            resetBall();
+
+            const interval = setInterval(() => {
+                timer--;
+                timerDiv.textContent = `Время: ${timer}`;
+                if (timer <= 0) {
+                    clearInterval(interval);
+                    endGame();
+                }
+            }, 1000);
+
+            updateGame();
+        }
+
+        function endGame() {
+            cancelAnimationFrame(animationFrame);
+            endScreen.style.display = 'block';
+            finalScore.textContent = `Забито мячей: ${score}`;
+            gameStarted = false;
+        }
+
+        function resetBall() {
+            ballX = width / 2;
+            ballY = height - 100;
+            goaliePos = Math.floor(Math.random() * 3); // Случайная позиция вратаря
+        }
+
+        function handleTouchStart(e) {
+            if (!gameStarted || isKicking) return;
+            touchStartX = e.touches[0].clientX;
+            touchStartY = e.touches[0].clientY;
+        }
+
+        function handleTouchEnd(e) {
+            if (!gameStarted || isKicking) return;
+            touchEndX = e.changedTouches[0].clientX;
+            touchEndY = e.changedTouches[0].clientY;
+
+            const dx = touchEndX - touchStartX;
+            const dy = touchEndY - touchStartY;
+
+            // Вычислить направление
+            ballVelocityX = dx / 20;
+            ballVelocityY = dy / 20 - 5; // Добавляем подъём вверх
+
+            // Определить направление для гола: лево, центр, право
+            if (dx < -50) ballDirection = 0;
+            else if (dx > 50) ballDirection = 2;
+            else ballDirection = 1;
+
+            isKicking = true;
+
+            // Вратарь двигается случайно (уже установлен в resetBall, но можно изменить при ударе)
+            goaliePos = Math.floor(Math.random() * 3);
+        }
+
+        canvas.addEventListener('touchstart', handleTouchStart);
+        canvas.addEventListener('touchend', handleTouchEnd);
+
+        startButton.addEventListener('click', startGame);
+        restartButton.addEventListener('click', () => {
+            endScreen.style.display = 'none';
+            timer = 30;
+            startGame();
+        });
+    </script>
+</body>
+</html>
